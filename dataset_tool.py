@@ -86,7 +86,9 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
         for idx, fname in enumerate(input_images):
             arch_fname = os.path.relpath(fname, source_dir)
             arch_fname = arch_fname.replace('\\', '/')
-            img = np.array(PIL.Image.open(fname))
+            image = PIL.Image.open(fname)
+            image = image if image.mode == 'RGB' else image.convert('RGB')
+            img = np.array(image)
             yield dict(img=img, label=labels.get(arch_fname))
             if idx >= max_idx-1:
                 break
@@ -226,14 +228,14 @@ def make_transform(
         img = PIL.Image.fromarray(img)
         ww = width if width is not None else w
         hh = height if height is not None else h
-        img = img.resize((ww, hh), PIL.Image.LANCZOS)
+        img = img.resize((ww, hh), PIL.Image.Resampling.LANCZOS)
         return np.array(img)
 
     def center_crop(width, height, img):
         crop = np.min(img.shape[:2])
         img = img[(img.shape[0] - crop) // 2 : (img.shape[0] + crop) // 2, (img.shape[1] - crop) // 2 : (img.shape[1] + crop) // 2]
         img = PIL.Image.fromarray(img, 'RGB')
-        img = img.resize((width, height), PIL.Image.LANCZOS)
+        img = img.resize((width, height), PIL.Image.Resampling.LANCZOS)
         return np.array(img)
 
     def center_crop_wide(width, height, img):
@@ -243,7 +245,7 @@ def make_transform(
 
         img = img[(img.shape[0] - ch) // 2 : (img.shape[0] + ch) // 2]
         img = PIL.Image.fromarray(img, 'RGB')
-        img = img.resize((width, height), PIL.Image.LANCZOS)
+        img = img.resize((width, height), PIL.Image.Resampling.LANCZOS)
         img = np.array(img)
 
         canvas = np.zeros([width, width, 3], dtype=np.uint8)
