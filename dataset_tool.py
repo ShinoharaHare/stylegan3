@@ -12,13 +12,17 @@ import functools
 import gzip
 import io
 import json
+import multiprocessing
 import os
 import pickle
 import re
 import sys
 import tarfile
+import threading
+import time
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable, Optional, Tuple, Union
 
 import click
@@ -318,6 +322,177 @@ def open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None],
 
 #----------------------------------------------------------------------------
 
+def mp_open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None], Callable[[], None]]:
+    dest_ext = file_ext(dest)
+
+    if dest_ext == 'zip':
+        if os.path.dirname(dest) != '':
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+        zf = zipfile.ZipFile(file=dest, mode='w', compression=zipfile.ZIP_STORED)
+        def zip_write_bytes(fname: str, data: Union[bytes, str]):
+            zf.writestr(fname, data)
+        return '', zip_write_bytes, zf.close
+    else:
+        # If the output folder already exists, check that is is
+        # empty.
+        #
+        # Note: creating the output directory is not strictly
+        # necessary as folder_write_bytes() also mkdirs, but it's better
+        # to give an error message earlier in case the dest folder
+        # somehow cannot be created.
+        os.makedirs(dest, exist_ok=True)
+
+        def folder_write_bytes(fname: str, data: Union[bytes, str]):
+            os.makedirs(os.path.dirname(fname), exist_ok=True)
+            with open(fname, 'wb') as fout:
+                if isinstance(data, str):
+                    data = data.encode('utf8')
+                fout.write(data)
+        return dest, folder_write_bytes, lambda: None
+
+def process_worker(args: SimpleNamespace):
+    fname = args.fname
+    source_dir = args.source_dir
+    input_labels = args.input_labels
+    idx = args.idx
+
+    dest = args.dest
+    transform = args.transform
+    resolution = args.resolution
+
+    archive_root_dir, save_bytes, close_dest = mp_open_dest(dest)
+    transform_image = make_transform(transform, *resolution)
+
+    
+    def load_image():
+        arch_fname = os.path.relpath(fname, source_dir)
+        arch_fname = arch_fname.replace('\\', '/')
+        image = PIL.Image.open(fname)
+        image = image if image.mode == 'RGB' else image.convert('RGB')
+        img = np.array(image)
+        return dict(img=img, label=input_labels.get(arch_fname))
+
+    dataset_attrs = None
+    image = load_image()
+
+    idx_str = f'{idx:08d}'
+    archive_fname = f'{idx_str[:5]}/img{idx_str}.png'
+    # Apply crop and resize.
+    img = transform_image(image['img'])
+
+    # Transform may drop images.
+    if img is not None:
+        # Error check to require uniform image attributes across
+        # the whole dataset.
+        channels = img.shape[2] if img.ndim == 3 else 1
+        cur_image_attrs = {
+            'width': img.shape[1],
+            'height': img.shape[0],
+            'channels': channels
+        }
+        if dataset_attrs is None:
+            dataset_attrs = cur_image_attrs
+            width = dataset_attrs['width']
+            height = dataset_attrs['height']
+            if width != height:
+                error(f'Image dimensions after scale and crop are required to be square.  Got {width}x{height}')
+            if dataset_attrs['channels'] not in [1, 3]:
+                error('Input images must be stored as RGB or grayscale')
+            if width != 2 ** int(np.floor(np.log2(width))):
+                error('Image width/height after scale and crop are required to be power-of-two')
+        elif dataset_attrs != cur_image_attrs:
+            err = [f'  dataset {k}/cur image {k}: {dataset_attrs[k]}/{cur_image_attrs[k]}' for k in dataset_attrs.keys()] # pylint: disable=unsubscriptable-object
+            error(f'Image {archive_fname} attributes must be equal across all images of the dataset.  Got:\n' + '\n'.join(err))
+
+        # Save the image as an uncompressed PNG.
+        img = PIL.Image.fromarray(img, { 1: 'L', 3: 'RGB' }[channels])
+        image_bits = io.BytesIO()
+        img.save(image_bits, format='png', compress_level=0, optimize=False)
+        save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
+        return [archive_fname, image['label']] if image['label'] is not None else None
+
+def mp_run(
+    source: str,
+    dest: str,
+    max_images: Optional[int],
+    transform: Optional[str],
+    resolution: Optional[Tuple[int, int]],
+    workers: int):
+
+    archive_root_dir, save_bytes, close_dest = open_dest(dest)
+
+    if resolution is None:
+        resolution = (None, None)
+
+    def mp_open_image_folder():
+        input_images = [str(f) for f in sorted(Path(source).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
+        labels = {}
+        meta_fname = os.path.join(source, 'dataset.json')
+        if os.path.isfile(meta_fname):
+            with open(meta_fname, 'r') as file:
+                labels = json.load(file)['labels']
+                if labels is not None:
+                    labels = { x[0]: x[1] for x in labels }
+                else:
+                    labels = {}
+        
+        max_idx = maybe_min(len(input_images), max_images)
+
+        return max_idx, input_images, labels
+
+    num_files, input_images, input_labels = mp_open_image_folder()
+
+    def daemon_worker(args: SimpleNamespace):
+        pbar = tqdm(total=args.num_files, unit=' images')
+        results: list = args.results
+        labels: list = args.labels
+        while not args.stop:
+            done = [x for x in results if x.ready()]
+            for r in done:
+                labels.append(r.get())
+                results.remove(r)
+                pbar.update()
+            time.sleep(0.2)
+
+    results = []
+    labels = []
+    daemon_args = SimpleNamespace()
+    daemon_args.num_files = num_files
+    daemon_args.stop = False
+    daemon_args.results = results
+    daemon_args.labels = labels
+
+    daemon_thread = threading.Thread(target=daemon_worker, args=(daemon_args,), daemon=True)
+    daemon_thread.start()
+    
+    workers = workers or None
+    with multiprocessing.Pool(workers) as pool:
+        for idx, fname in enumerate(input_images):
+            args = SimpleNamespace()
+            args.fname = fname
+            args.idx = idx
+            args.source_dir = source
+            args.dest = dest
+            args.transform = transform
+            args.resolution = resolution
+            args.input_labels = input_labels
+            r = pool.apply_async(process_worker, (args,))
+            results.append(r)
+        pool.close()
+        pool.join()
+    
+    time.sleep(1)
+    daemon_args.stop = True
+    daemon_thread.join()
+
+    metadata = {
+       'labels': labels if all(x is not None for x in labels) else None
+    }
+    save_bytes(os.path.join(archive_root_dir, 'dataset.json'), json.dumps(metadata))
+    close_dest()
+
+#----------------------------------------------------------------------------
+
 @click.command()
 @click.pass_context
 @click.option('--source', help='Directory or archive name for input dataset', required=True, metavar='PATH')
@@ -325,13 +500,15 @@ def open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None],
 @click.option('--max-images', help='Output only up to `max-images` images', type=int, default=None)
 @click.option('--transform', help='Input crop/resize mode', type=click.Choice(['center-crop', 'center-crop-wide']))
 @click.option('--resolution', help='Output resolution (e.g., \'512x512\')', metavar='WxH', type=parse_tuple)
+@click.option('--workers', help='Multiprocessing', type=int, default=1)
 def convert_dataset(
     ctx: click.Context,
     source: str,
     dest: str,
     max_images: Optional[int],
     transform: Optional[str],
-    resolution: Optional[Tuple[int, int]]
+    resolution: Optional[Tuple[int, int]],
+    workers: Optional[bool]
 ):
     """Convert an image dataset into a dataset archive usable with StyleGAN2 ADA PyTorch.
 
@@ -396,6 +573,10 @@ def convert_dataset(
 
     if dest == '':
         ctx.fail('--dest output filename or directory must not be an empty string')
+
+    if workers != 1:
+        mp_run(source, dest, max_images, transform, resolution, workers)
+        return
 
     num_files, input_iter = open_dataset(source, max_images=max_images)
     archive_root_dir, save_bytes, close_dest = open_dest(dest)
