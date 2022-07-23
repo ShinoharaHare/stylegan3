@@ -8,23 +8,23 @@
 
 """Main training loop."""
 
-import os
-import time
 import copy
 import json
+import os
 import pickle
-import psutil
-import PIL.Image
-import numpy as np
-import torch
-import dnnlib
-from torch_utils import misc
-from torch_utils import training_stats
-from torch_utils.ops import conv2d_gradfix
-from torch_utils.ops import grid_sample_gradfix
+import time
+from datetime import datetime, timedelta
 
+import dnnlib
 import legacy
+import numpy as np
+import PIL.Image
+import psutil
+import pytz
+import torch
 from metrics import metric_main
+from torch_utils import misc, training_stats
+from torch_utils.ops import conv2d_gradfix, grid_sample_gradfix
 
 #----------------------------------------------------------------------------
 
@@ -325,7 +325,11 @@ def training_loop(
         # Print status line, accumulating the same information in training_stats.
         tick_end_time = time.time()
         fields = []
+        date = datetime.now(pytz.timezone('Asia/Taipei'))
+        
         fields += [f"tick {training_stats.report0('Progress/tick', cur_tick):<5d}"]
+        fields += [f"{date.strftime('%Y-%m-%d %H:%M:%S')}"]
+        fields += [f"-> {(date + timedelta(seconds=tick_end_time - start_time)).strftime('%Y-%m-%d %H:%M:%S')}\n\t"]
         fields += [f"kimg {training_stats.report0('Progress/kimg', cur_nimg / 1e3):<8.1f}"]
         fields += [f"time {dnnlib.util.format_time(training_stats.report0('Timing/total_sec', tick_end_time - start_time)):<12s}"]
         fields += [f"sec/tick {training_stats.report0('Timing/sec_per_tick', tick_end_time - tick_start_time):<7.1f}"]
