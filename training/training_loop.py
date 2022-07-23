@@ -329,7 +329,7 @@ def training_loop(
         
         fields += [f"tick {training_stats.report0('Progress/tick', cur_tick):<5d}"]
         fields += [f"{date.strftime('%Y-%m-%d %H:%M:%S')}"]
-        fields += [f"-> {(date + timedelta(seconds=tick_end_time - start_time)).strftime('%Y-%m-%d %H:%M:%S')}\n\t"]
+        fields += [f"-> {(date + timedelta(seconds=tick_end_time - tick_start_time)).strftime('%Y-%m-%d %H:%M:%S')}\n\t"]
         fields += [f"kimg {training_stats.report0('Progress/kimg', cur_nimg / 1e3):<8.1f}"]
         fields += [f"time {dnnlib.util.format_time(training_stats.report0('Timing/total_sec', tick_end_time - start_time)):<12s}"]
         fields += [f"sec/tick {training_stats.report0('Timing/sec_per_tick', tick_end_time - tick_start_time):<7.1f}"]
