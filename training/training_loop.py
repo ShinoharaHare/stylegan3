@@ -120,6 +120,7 @@ def training_loop(
     cudnn_benchmark         = True,     # Enable torch.backends.cudnn.benchmark?
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
+    delete_old_snapshot     = False,    
 ):
     # Initialize.
     start_time = time.time()
@@ -375,6 +376,11 @@ def training_loop(
             if rank == 0:
                 with open(snapshot_pkl, 'wb') as f:
                     pickle.dump(snapshot_data, f)
+                
+                if delete_old_snapshot:
+                    for file in os.listdir(run_dir):
+                        if file.endswith('.pkl') and file != f'network-snapshot-{cur_nimg//1000:06d}.pkl':
+                            os.remove(os.path.join(run_dir, file))
 
         # Evaluate metrics.
         if (snapshot_data is not None) and (len(metrics) > 0):

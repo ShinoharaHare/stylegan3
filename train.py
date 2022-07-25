@@ -138,6 +138,7 @@ def parse_comma_separated_list(s):
 @click.option('--resume',       help='Resume from given network pickle', metavar='[PATH|URL]',  type=str)
 @click.option('--freezed',      help='Freeze first layers of D', metavar='INT',                 type=click.IntRange(min=0), default=0, show_default=True)
 @click.option('--rkimg',        help='Resume kimg', metavar='INT',                              type=click.IntRange(min=0), default=0, show_default=True)
+@click.option('--dos',          help='Delete old snapshot', metavar='BOOL',                     type=bool, default=False, show_default=True)
 
 # Misc hyperparameters.
 @click.option('--p',            help='Probability for --aug=fixed', metavar='FLOAT',            type=click.FloatRange(min=0, max=1), default=0.2, show_default=True)
@@ -278,6 +279,8 @@ def main(**kwargs):
     desc = f'{opts.cfg:s}-{dataset_name:s}-gpus{c.num_gpus:d}-batch{c.batch_size:d}-gamma{c.loss_kwargs.r1_gamma:g}'
     if opts.desc is not None:
         desc += f'-{opts.desc}'
+    
+    c.delete_old_snapshot = opts.dos
 
     # Launch.
     launch_training(c=c, desc=desc, outdir=opts.outdir, dry_run=opts.dry_run)
