@@ -1,1 +1,3 @@
 .cache/
+.nv/
+__pycache__/
