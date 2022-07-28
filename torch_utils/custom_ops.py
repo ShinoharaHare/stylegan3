@@ -10,6 +10,7 @@ import glob
 import hashlib
 import importlib
 import os
+import pathlib
 import re
 import shutil
 import uuid
@@ -117,6 +118,7 @@ def get_plugin(module_name, sources, headers=None, source_dir=None, **build_kwar
             # Select cached build directory name.
             source_digest = hash_md5.hexdigest()
             build_top_dir = torch.utils.cpp_extension._get_build_directory(module_name, verbose=verbose_build) # pylint: disable=protected-access
+            build_top_dir = pathlib.Path(__file__).parent.parent.joinpath(build_top_dir[build_top_dir.index('.cache'):])
             cached_build_dir = os.path.join(build_top_dir, f'{source_digest}-{_get_mangled_gpu_name()}')
 
             if not os.path.isdir(cached_build_dir):
