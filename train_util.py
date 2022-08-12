@@ -79,6 +79,7 @@ def main(background=False):
     args.gpus = 1
     args.batch = 32
     args.batch_gpu = 8
+    args.gamma = 8
     args.snap = None
     args.snap_img = None
     args.snap_kimg = 1000
