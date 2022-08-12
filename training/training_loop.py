@@ -387,7 +387,7 @@ def training_loop(
                 else:
                     for file in os.listdir(run_dir):
                         if re.match(r'latest-network-snapshot-\d{6}\.pkl', file):
-                            os.remove(file)
+                            os.remove(os.path.join(run_dir, file))
                     with open(os.path.join(run_dir, f'latest-network-snapshot-{cur_nimg//1000:06d}.pkl'), 'wb') as f:
                         pickle.dump(snapshot_data, f)
 
