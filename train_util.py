@@ -83,6 +83,7 @@ def main(background=False):
     args.snap_img = None
     args.snap_kimg = 1000
     args.snap_img_kimg = 200
+    args.save_latest = True
     args.kimg = 10000
     args.metrics = 'none' # none fid50k_full
 
