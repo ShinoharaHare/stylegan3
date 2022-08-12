@@ -137,8 +137,13 @@ def parse_comma_separated_list(s):
 @click.option('--aug',          help='Augmentation mode',                                       type=click.Choice(['noaug', 'ada', 'fixed']), default='ada', show_default=True)
 @click.option('--resume',       help='Resume from given network pickle', metavar='[PATH|URL]',  type=str)
 @click.option('--freezed',      help='Freeze first layers of D', metavar='INT',                 type=click.IntRange(min=0), default=0, show_default=True)
-@click.option('--rkimg',        help='Resume kimg', metavar='INT',                              type=click.IntRange(min=0), default=0, show_default=True)
-@click.option('--dos',          help='Delete old snapshot', metavar='BOOL',                     type=bool, default=False, show_default=True)
+
+# Custom
+@click.option('--rkimg',        metavar='KIMG',                                                 type=click.IntRange(min=0), default=0, show_default=True)
+@click.option('--snap-kimg',    metavar='KIMG',                                                 type=click.IntRange(min=0), default=None, show_default=True)
+@click.option('--snap-img',     metavar='TICKS',                                                type=click.IntRange(min=1), default=None, show_default=True)
+@click.option('--snap-img-kimg',metavar='KIMG',                                                 type=click.IntRange(min=0), default=None, show_default=True)
+@click.option('--save-latest',  metavar='BOOL',                                                 type=bool, default=False, show_default=True)
 
 # Misc hyperparameters.
 @click.option('--p',            help='Probability for --aug=fixed', metavar='FLOAT',            type=click.FloatRange(min=0, max=1), default=0.2, show_default=True)
@@ -156,8 +161,7 @@ def parse_comma_separated_list(s):
 @click.option('--metrics',      help='Quality metrics', metavar='[NAME|A,B,C|none]',            type=parse_comma_separated_list, default='fid50k_full', show_default=True)
 @click.option('--kimg',         help='Total training duration', metavar='KIMG',                 type=click.IntRange(min=1), default=25000, show_default=True)
 @click.option('--tick',         help='How often to print progress', metavar='KIMG',             type=click.IntRange(min=1), default=4, show_default=True)
-@click.option('--snap',         help='How often to save snapshots', metavar='TICKS',            type=click.IntRange(min=1), default=50, show_default=True)
-@click.option('--snap-image',   help='How often to save image snapshots', metavar='TICKS',      type=click.IntRange(min=1), default=50, show_default=True)
+@click.option('--snap',         help='How often to save snapshots', metavar='TICKS',            type=click.IntRange(min=1), default=None, show_default=True)
 @click.option('--seed',         help='Random seed', metavar='INT',                              type=click.IntRange(min=0), default=0, show_default=True)
 @click.option('--fp32',         help='Disable mixed-precision', metavar='BOOL',                 type=bool, default=False, show_default=True)
 @click.option('--nobench',      help='Disable cuDNN benchmarking', metavar='BOOL',              type=bool, default=False, show_default=True)
@@ -220,9 +224,14 @@ def main(**kwargs):
     c.total_kimg = opts.kimg
     c.kimg_per_tick = opts.tick
     c.network_snapshot_ticks = opts.snap
-    c.image_snapshot_ticks = opts.snap_image
+    c.image_snapshot_ticks = opts.snap_img
     c.random_seed = c.training_set_kwargs.random_seed = opts.seed
     c.data_loader_kwargs.num_workers = opts.workers
+
+    # Custom
+    c.network_snapshot_kimg = opts.snap_kimg
+    c.image_snapshot_kimg = opts.snap_img_kimg
+    c.save_latest_snapshot = opts.save_latest
 
     # Sanity checks.
     if c.batch_size % c.num_gpus != 0:
@@ -282,8 +291,6 @@ def main(**kwargs):
     if opts.desc is not None:
         desc += f'-{opts.desc}'
     
-    c.delete_old_snapshot = opts.dos
-
     # Launch.
     launch_training(c=c, desc=desc, outdir=opts.outdir, dry_run=opts.dry_run)
 

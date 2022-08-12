@@ -12,6 +12,7 @@ import copy
 import json
 import os
 import pickle
+import re
 import time
 from datetime import datetime, timedelta
 
@@ -120,7 +121,9 @@ def training_loop(
     cudnn_benchmark         = True,     # Enable torch.backends.cudnn.benchmark?
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
-    delete_old_snapshot     = False,    
+    image_snapshot_kimg     = None,
+    network_snapshot_kimg   = None,
+    save_latest_snapshot    = False
 ):
     # Initialize.
     start_time = time.time()
@@ -354,14 +357,18 @@ def training_loop(
                 print('Aborting...')
 
         # Save image snapshot.
-        if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
+        if (rank == 0) or done \
+                or (image_snapshot_ticks is not None and cur_tick % image_snapshot_ticks == 0) \
+                or (image_snapshot_kimg is not None and cur_nimg % image_snapshot_kimg == 0):
             images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
             save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.jpg'), drange=[-1,1], grid_size=grid_size)
 
         # Save network snapshot.
         snapshot_pkl = None
         snapshot_data = None
-        if (network_snapshot_ticks is not None) and (done or cur_tick % network_snapshot_ticks == 0):
+        f_snap_ticks = network_snapshot_ticks is not None and cur_tick % network_snapshot_ticks == 0
+        f_snap_kimg = network_snapshot_kimg is not None and cur_nimg % network_snapshot_kimg == 0
+        if done or f_snap_ticks or f_snap_kimg or save_latest_snapshot:
             snapshot_data = dict(G=G, D=D, G_ema=G_ema, augment_pipe=augment_pipe, training_set_kwargs=dict(training_set_kwargs))
             for key, value in snapshot_data.items():
                 if isinstance(value, torch.nn.Module):
@@ -374,16 +381,18 @@ def training_loop(
                 del value # conserve memory
             snapshot_pkl = os.path.join(run_dir, f'network-snapshot-{cur_nimg//1000:06d}.pkl')
             if rank == 0:
-                with open(snapshot_pkl, 'wb') as f:
-                    pickle.dump(snapshot_data, f)
-                
-                if delete_old_snapshot:
+                if done or f_snap_ticks or f_snap_kimg:
+                    with open(snapshot_pkl, 'wb') as f:
+                        pickle.dump(snapshot_data, f)
+                else:
                     for file in os.listdir(run_dir):
-                        if file.endswith('.pkl') and file != f'network-snapshot-{cur_nimg//1000:06d}.pkl':
-                            os.remove(os.path.join(run_dir, file))
+                        if re.match(r'latest-network-snapshot-\d{6}\.pkl', file):
+                            os.remove(file)
+                    with open(os.path.join(run_dir, f'latest-network-snapshot-{cur_nimg//1000:06d}.pkl'), 'wb') as f:
+                        pickle.dump(snapshot_data, f)
 
         # Evaluate metrics.
-        if (snapshot_data is not None) and (len(metrics) > 0):
+        if (snapshot_data is not None) and (len(metrics) > 0) and (f_snap_ticks or f_snap_kimg):
             if rank == 0:
                 print('Evaluating metrics...')
             for metric in metrics:
