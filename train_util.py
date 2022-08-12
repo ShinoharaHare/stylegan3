@@ -1,4 +1,6 @@
+import glob
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -63,6 +65,22 @@ class Args(SimpleNamespace):
         cmd += ' > /dev/null 2>&1 &' if background else ''
         return cmd
 
+    def get_resume(self):
+        outdir = self.outdir
+
+        rkimg = 0
+        resume = None
+        for path in glob.glob(os.path.join(outdir, '*/network-snapshot-*.pkl')):
+            match = re.search(r'network-snapshot-(\d{6})', path)
+            kimg = int(match.group(1))
+
+            if kimg > rkimg:
+                rkimg = kimg
+                resume = path
+
+        self.rkimg = rkimg or self.rkimg
+        self.resume = resume or self.resume
+
 @click.command()
 @click.argument('background', type=bool, default=False)
 def main(background=False):
@@ -75,8 +93,8 @@ def main(background=False):
     args.cfg = 'stylegan2'
     args.outdir = os.path.join(workspace, 'training')
     args.data = os.path.join(workspace, 'data/512x512.zip')
-    args.workers = 2
-    args.gpus = 1
+    args.workers = 4
+    args.gpus = 4
     args.batch = 32
     args.batch_gpu = 8
     args.gamma = 8
