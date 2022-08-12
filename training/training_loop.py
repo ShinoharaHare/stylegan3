@@ -357,9 +357,9 @@ def training_loop(
                 print('Aborting...')
 
         # Save image snapshot.
-        if (rank == 0) or done \
+        if (rank == 0) and (done \
                 or (image_snapshot_ticks is not None and cur_tick % image_snapshot_ticks == 0) \
-                or (image_snapshot_kimg is not None and cur_nimg % image_snapshot_kimg == 0):
+                or (image_snapshot_kimg is not None and cur_nimg % image_snapshot_kimg == 0)):
             images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
             save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.jpg'), drange=[-1,1], grid_size=grid_size)
 
