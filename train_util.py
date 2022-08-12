@@ -70,7 +70,7 @@ class Args(SimpleNamespace):
 
         rkimg = 0
         resume = None
-        for path in glob.glob(os.path.join(outdir, '*/network-snapshot-*.pkl')):
+        for path in glob.glob(os.path.join(outdir, '*/*.pkl')):
             match = re.search(r'network-snapshot-(\d{6})', path)
             kimg = int(match.group(1))
 
@@ -105,6 +105,10 @@ def main(background=False):
     args.save_latest = True
     args.kimg = 10000
     args.metrics = 'none' # none fid50k_full
+    args.resume = ''
+    args.rkimg = 0
+
+    args.get_resume()
 
     os.system(args.build_command(background))
 
