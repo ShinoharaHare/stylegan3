@@ -140,6 +140,7 @@ def parse_comma_separated_list(s):
 
 # Custom
 @click.option('--rkimg',        metavar='KIMG',                                                 type=click.IntRange(min=0), default=0, show_default=True)
+@click.option('--rtick',        metavar='TICKS',                                                type=click.IntRange(min=0), default=0, show_default=True)
 @click.option('--snap-kimg',    metavar='KIMG',                                                 type=click.IntRange(min=0), default=None, show_default=True)
 @click.option('--snap-img',     metavar='TICKS',                                                type=click.IntRange(min=1), default=None, show_default=True)
 @click.option('--snap-img-kimg',metavar='KIMG',                                                 type=click.IntRange(min=0), default=None, show_default=True)
@@ -229,6 +230,7 @@ def main(**kwargs):
     c.data_loader_kwargs.num_workers = opts.workers
 
     # Custom
+    c.resume_tick = opts.rtick
     c.network_snapshot_kimg = opts.snap_kimg
     c.image_snapshot_kimg = opts.snap_img_kimg
     c.save_latest_snapshot = opts.save_latest

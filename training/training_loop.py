@@ -118,6 +118,7 @@ def training_loop(
     network_snapshot_ticks  = 50,       # How often to save network snapshots? None = disable.
     resume_pkl              = None,     # Network pickle to resume training from.
     resume_kimg             = 0,        # First kimg to report when resuming training.
+    resume_tick             = 0,
     cudnn_benchmark         = True,     # Enable torch.backends.cudnn.benchmark?
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
@@ -248,7 +249,7 @@ def training_loop(
         print(f'Training for {total_kimg} kimg...')
         print()
     cur_nimg = resume_kimg * 1000
-    cur_tick = 0
+    cur_tick = resume_tick
     tick_start_nimg = cur_nimg
     tick_start_time = time.time()
     maintenance_time = tick_start_time - start_time
@@ -432,6 +433,9 @@ def training_loop(
 
         # Update state.
         cur_tick += 1
+        with open(os.path.join(run_dir, 'tick'), 'w') as f:
+            f.write(str(cur_tick))
+
         tick_start_nimg = cur_nimg
         tick_start_time = time.time()
         maintenance_time = tick_start_time - tick_end_time
