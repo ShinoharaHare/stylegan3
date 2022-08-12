@@ -68,18 +68,10 @@ class Args(SimpleNamespace):
 
     def get_resume(self):
         outdir = Path(self.outdir)
-        
-        rtick = 0
         rkimg = 0
         resume = None
 
         for subdir in outdir.glob('*/'):
-            tick_path = subdir.joinpath('tick')
-            if tick_path.is_file():
-                with open(tick_path, 'r') as f:
-                    tick = int(f.read())
-            else:
-                tick = 0
             for path in subdir.glob('*.pkl'):
                 match = re.search(r'network-snapshot-(\d{6})', path.name)
                 if match:
@@ -87,9 +79,7 @@ class Args(SimpleNamespace):
                     if kimg > rkimg:
                         rkimg = kimg
                         resume = path
-                        rtick = tick
 
-        self.rtick = rtick or self.rtick
         self.rkimg = rkimg or self.rkimg
         self.resume = resume or self.resume
 
@@ -118,7 +108,6 @@ def main(background=False):
     args.kimg = 25000
     args.metrics = 'fid50k_full' # none fid50k_full
     args.resume = ''
-    args.rtick = 0
     args.rkimg = 0
 
     args.get_resume()
