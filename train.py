@@ -143,7 +143,7 @@ def parse_comma_separated_list(s):
 @click.option('--snap-kimg',    metavar='KIMG',                                                 type=click.IntRange(min=0), default=None, show_default=True)
 @click.option('--snap-img',     metavar='TICKS',                                                type=click.IntRange(min=1), default=None, show_default=True)
 @click.option('--snap-img-kimg',metavar='KIMG',                                                 type=click.IntRange(min=0), default=None, show_default=True)
-@click.option('--save-latest',  metavar='BOOL',                                                 type=bool, default=False, show_default=True)
+@click.option('--save-latest',                                                                  is_flag=True)
 
 # Misc hyperparameters.
 @click.option('--p',            help='Probability for --aug=fixed', metavar='FLOAT',            type=click.FloatRange(min=0, max=1), default=0.2, show_default=True)
