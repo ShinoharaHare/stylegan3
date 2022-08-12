@@ -367,7 +367,7 @@ def training_loop(
         snapshot_pkl = None
         snapshot_data = None
         f_snap_ticks = network_snapshot_ticks is not None and cur_tick % network_snapshot_ticks == 0
-        f_snap_kimg = network_snapshot_kimg is not None and cur_nimg % network_snapshot_kimg == 0
+        f_snap_kimg = network_snapshot_kimg is not None and cur_nimg // 1000 % network_snapshot_kimg == 0
         if done or f_snap_ticks or f_snap_kimg or save_latest_snapshot:
             snapshot_data = dict(G=G, D=D, G_ema=G_ema, augment_pipe=augment_pipe, training_set_kwargs=dict(training_set_kwargs))
             for key, value in snapshot_data.items():
