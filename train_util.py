@@ -100,6 +100,7 @@ def main(background=False):
     args.batch = 32
     args.batch_gpu = 8
     args.gamma = 8
+    args.freezed = 10
     args.snap = 100
     args.snap_img = 50
     # args.snap_kimg = 1000
