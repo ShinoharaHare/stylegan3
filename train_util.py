@@ -72,6 +72,10 @@ class Args(SimpleNamespace):
         resume = None
         for path in glob.glob(os.path.join(outdir, '*/*.pkl')):
             match = re.search(r'network-snapshot-(\d{6})', path)
+
+            if not match:
+                continue
+
             kimg = int(match.group(1))
 
             if kimg > rkimg:
