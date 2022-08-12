@@ -432,9 +432,6 @@ def training_loop(
 
         # Update state.
         cur_tick += 1
-        with open(os.path.join(run_dir, 'tick'), 'w') as f:
-            f.write(str(cur_tick))
-
         tick_start_nimg = cur_nimg
         tick_start_time = time.time()
         maintenance_time = tick_start_time - tick_end_time
